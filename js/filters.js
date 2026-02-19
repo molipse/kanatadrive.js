@@ -3,6 +3,9 @@
  * Filter UI, state management, and URL persistence for the car catalog.
  * Depends on: utils.js, api.js, cars.js
  */
+if (window.__KD_FILTERS_LOADED__) { /* already loaded, skip */ return; }
+window.__KD_FILTERS_LOADED__ = true;
+
 
 /* ─────────────────────────────────────────
    FILTER STATE

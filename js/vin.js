@@ -7,6 +7,9 @@
  * as a global variable: window.KD_RAPIDAPI_KEY = 'your-key-here';
  * Do NOT commit the key to this file.
  */
+if (window.__KD_VIN_LOADED__) { /* already loaded, skip */ return; }
+window.__KD_VIN_LOADED__ = true;
+
 
 const VIN_API_HOST = 'vindecoder.p.rapidapi.com';
 const VIN_API_URL = 'https://vindecoder.p.rapidapi.com/v2/decode_vin';

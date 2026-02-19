@@ -3,6 +3,9 @@
  * Car data fetching and DOM rendering.
  * Depends on: utils.js, api.js
  */
+if (window.__KD_CARS_LOADED__) { /* already loaded, skip */ return; }
+window.__KD_CARS_LOADED__ = true;
+
 
 /* ─────────────────────────────────────────
    DATA FETCHING

@@ -3,6 +3,9 @@
  * localStorage-based favorites for buyers (no auth required).
  * Depends on: utils.js, api.js, cars.js
  */
+if (window.__KD_FAVORITES_LOADED__) { /* already loaded, skip */ return; }
+window.__KD_FAVORITES_LOADED__ = true;
+
 
 const FAVORITES_KEY = 'kd_favorites';
 

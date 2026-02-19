@@ -3,6 +3,9 @@
  * Dealer dashboard: listings, add/edit car forms, requests, account settings.
  * Depends on: utils.js, api.js, auth.js, cars.js, requests.js
  */
+if (window.__KD_DASHBOARD_LOADED__) { /* already loaded, skip */ return; }
+window.__KD_DASHBOARD_LOADED__ = true;
+
 
 /* ─────────────────────────────────────────
    MY LISTINGS
