@@ -355,3 +355,50 @@ function _collectAccountFormData(form) {
   });
   return data;
 }
+
+/* ─────────────────────────────────────────
+   AUTO-INIT
+───────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const path = window.location.pathname;
+
+  // Only run on dashboard pages
+  if (!path.startsWith('/dashboard')) return;
+
+  // auth.js handles checkAuth and sets window.KD_USER.
+  // Wait briefly for auth.js DOMContentLoaded to complete if loaded before dashboard.js.
+  // If auth.js is not present, run our own guard.
+  let user = window.KD_USER;
+  if (!user) {
+    user = await checkAuth();
+    if (!user) return;
+    window.KD_USER = user;
+  }
+
+  // Route to the correct init function based on URL
+  if (path.includes('/my-listings')) {
+    await initMyListings();
+    return;
+  }
+
+  if (path.includes('/add-car')) {
+    await initAddCar();
+    return;
+  }
+
+  if (path.includes('/edit-car')) {
+    await initEditCar();
+    return;
+  }
+
+  if (path.includes('/requests')) {
+    await initRequests();
+    return;
+  }
+
+  if (path.includes('/account') || path.includes('/profile')) {
+    await initAccount();
+    return;
+  }
+});

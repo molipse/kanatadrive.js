@@ -241,3 +241,50 @@ function initResetPasswordForm() {
     }
   });
 }
+
+/* ─────────────────────────────────────────
+   AUTO-INIT
+───────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', async () => {
+  const path = window.location.pathname;
+
+  // Always bind logout buttons (present in nav on all pages)
+  initLogoutButtons();
+
+  // Dashboard pages — run auth guard first, then page-specific init
+  if (path.startsWith('/dashboard')) {
+    const user = await checkAuth();
+    if (!user) return; // checkAuth redirects on failure
+
+    // Expose user globally for other modules (dashboard.js, etc.)
+    window.KD_USER = user;
+    return;
+  }
+
+  // Auth pages — no guard needed, just bind forms
+  if (path.includes('/login')) {
+    initLoginForm();
+    return;
+  }
+
+  if (path.includes('/register') || path.includes('/signup')) {
+    initRegisterForm();
+    return;
+  }
+
+  if (path.includes('/verify-email')) {
+    await initVerifyEmailPage();
+    return;
+  }
+
+  if (path.includes('/reset-password-request') || path.includes('/forgot-password')) {
+    initResetRequestForm();
+    return;
+  }
+
+  if (path.includes('/reset-password')) {
+    initResetPasswordForm();
+    return;
+  }
+});

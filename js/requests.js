@@ -190,3 +190,14 @@ async function _setRequestStatus(id, status, cardEl) {
     alert(err.message || 'Failed to update request.');
   }
 }
+
+/* ─────────────────────────────────────────
+   AUTO-INIT
+───────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Inquiry form — present on car detail pages
+  if (document.querySelector('[data-kd="inquiry-form"]')) {
+    initInquiryForm();
+  }
+});

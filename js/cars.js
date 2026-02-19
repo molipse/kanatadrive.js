@@ -307,7 +307,8 @@ async function initCarDetailPage() {
  * @param {Object} [filters={}]
  */
 async function initCatalogPage(filters = {}) {
-  const container = document.querySelector('[data-kd="cars-list"]');
+  const container = document.querySelector('[data-kd="cars-list"]') ||
+                    document.querySelector('[wized="cars-list"]');
   if (!container) return;
 
   showLoading(container);
@@ -320,3 +321,31 @@ async function initCatalogPage(filters = {}) {
     showError(container, err.message || 'Failed to load listings.');
   }
 }
+
+/* ─────────────────────────────────────────
+   AUTO-INIT
+───────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Car detail page — has [data-kd="car-detail"] or ?id= on a /car path
+  const isDetailPage =
+    document.querySelector('[data-kd="car-detail"]') ||
+    (getUrlParam('id') && window.location.pathname.includes('/car'));
+
+  if (isDetailPage) {
+    initCarDetailPage();
+    return;
+  }
+
+  // Catalog page — has [data-kd="cars-list"] or [wized="cars-list"]
+  // If filters.js is also loaded it will call applyFilters() which calls getCars internally,
+  // so only init here when filters.js is NOT present on the page.
+  const hasCatalogContainer =
+    document.querySelector('[data-kd="cars-list"]') ||
+    document.querySelector('[wized="cars-list"]');
+
+  if (hasCatalogContainer && typeof initFilters === 'undefined') {
+    // filters.js not loaded — load cars directly
+    initCatalogPage();
+  }
+});

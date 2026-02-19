@@ -163,3 +163,28 @@ function updateFavoritesCount() {
     el.style.display = count > 0 ? 'inline-flex' : 'none';
   });
 }
+
+/* ─────────────────────────────────────────
+   AUTO-INIT
+───────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Always update the count badge in the nav (present on all pages)
+  updateFavoritesCount();
+
+  // Attach click delegation for heart buttons on any page with car cards
+  const hasCards =
+    document.querySelector('[data-kd="favorite-btn"]') ||
+    document.querySelector('[data-kd="cars-list"]') ||
+    document.querySelector('[wized="cars-list"]') ||
+    document.querySelector('[data-kd="car-detail"]');
+
+  if (hasCards) {
+    initFavoriteButtons();
+  }
+
+  // Favorites page — has [data-kd="favorites-list"]
+  if (document.querySelector('[data-kd="favorites-list"]')) {
+    renderFavorites();
+  }
+});

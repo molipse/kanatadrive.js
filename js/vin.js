@@ -193,3 +193,13 @@ function initVinDecoder() {
     }
   });
 }
+
+/* ─────────────────────────────────────────
+   AUTO-INIT
+───────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.querySelector('[data-kd="vin-decode-btn"]')) {
+    initVinDecoder();
+  }
+});

@@ -374,3 +374,18 @@ function _updateSearchInput() {
   const searchInput = document.querySelector('[wized="filter_search_input"]');
   if (searchInput && filterState.search) searchInput.value = filterState.search;
 }
+
+/* ─────────────────────────────────────────
+   AUTO-INIT
+───────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Run only when a catalog container exists on the page
+  const hasCatalog =
+    document.querySelector('[data-kd="cars-list"]') ||
+    document.querySelector('[wized="cars-list"]');
+
+  if (!hasCatalog) return;
+
+  initFilters();
+});
