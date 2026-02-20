@@ -247,12 +247,6 @@ function initResetPasswordForm() {
    AUTO-INIT
 ───────────────────────────────────────── */
 
-window.login = login;
-window.logout = logout;
-window.checkAuth = checkAuth;
-window.initLoginForm = initLoginForm;
-window.initRegisterForm = initRegisterForm;
-
 async function initAuth() {
   const path = window.location.pathname;
 
@@ -296,10 +290,15 @@ async function initAuth() {
   }
 }
 
-window.initAuth = initAuth;
-
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initAuth);
 } else {
   initAuth();
 }
+
+window.initAuth = initAuth;
+window.login = login;
+window.logout = logout;
+window.checkAuth = checkAuth;
+window.initLoginForm = initLoginForm;
+window.initRegisterForm = initRegisterForm;

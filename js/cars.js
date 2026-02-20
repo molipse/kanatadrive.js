@@ -351,12 +351,12 @@ function initCars() {
   }
 }
 
-window.initCars = initCars;
-window.initCatalogPage = initCatalogPage;
-window.initCarDetailPage = initCarDetailPage;
-
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initCars);
 } else {
   initCars();
 }
+
+window.initCars = initCars;
+window.initCatalogPage = initCatalogPage;
+window.initCarDetailPage = initCarDetailPage;

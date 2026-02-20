@@ -361,12 +361,6 @@ function _collectAccountFormData(form) {
    AUTO-INIT
 ───────────────────────────────────────── */
 
-window.initMyListings = initMyListings;
-window.initAddCar = initAddCar;
-window.initEditCar = initEditCar;
-window.initRequests = initRequests;
-window.initAccount = initAccount;
-
 async function initDashboard() {
   const path = window.location.pathname;
 
@@ -410,10 +404,15 @@ async function initDashboard() {
   }
 }
 
-window.initDashboard = initDashboard;
-
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initDashboard);
 } else {
   initDashboard();
 }
+
+window.initDashboard = initDashboard;
+window.initMyListings = initMyListings;
+window.initAddCar = initAddCar;
+window.initEditCar = initEditCar;
+window.initRequests = initRequests;
+window.initAccount = initAccount;

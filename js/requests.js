@@ -196,11 +196,7 @@ async function _setRequestStatus(id, status, cardEl) {
    AUTO-INIT
 ───────────────────────────────────────── */
 
-window.initInquiryForm = initInquiryForm;
-window.submitInquiry = submitInquiry;
-window.renderRequests = renderRequests;
-
-function initRequests2() {
+function initRequests() {
   // Inquiry form — present on car detail pages
   if (document.querySelector('[data-kd="inquiry-form"]')) {
     initInquiryForm();
@@ -208,7 +204,12 @@ function initRequests2() {
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initRequests2);
+  document.addEventListener('DOMContentLoaded', initRequests);
 } else {
-  initRequests2();
+  initRequests();
 }
+
+window.initRequests = initRequests;
+window.initInquiryForm = initInquiryForm;
+window.submitInquiry = submitInquiry;
+window.renderRequests = renderRequests;
