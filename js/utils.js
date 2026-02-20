@@ -3,8 +3,6 @@
  * Shared utilities: cookies, formatters, URL helpers, UI helpers
  * Loaded on every page. No external dependencies.
  */
-if (window.__KD_UTILS_LOADED__) { /* already loaded, skip */ return; }
-window.__KD_UTILS_LOADED__ = true;
 
 
 /* ─────────────────────────────────────────

@@ -3,8 +3,6 @@
  * Base HTTP client for Xano REST API.
  * Depends on: utils.js (getCookie must be loaded first)
  */
-if (window.__KD_API_LOADED__) { /* already loaded, skip */ return; }
-window.__KD_API_LOADED__ = true;
 
 
 const API_BASE = 'https://x8ki-letl-twmt.n7.xano.io/api:K1kUAXTG';

@@ -3,8 +3,6 @@
  * Buyer inquiry form submission + dealer request management.
  * Depends on: utils.js, api.js
  */
-if (window.__KD_REQUESTS_LOADED__) { /* already loaded, skip */ return; }
-window.__KD_REQUESTS_LOADED__ = true;
 
 
 /* ─────────────────────────────────────────

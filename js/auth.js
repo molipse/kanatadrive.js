@@ -3,8 +3,6 @@
  * All authentication flows: login, register, verify email, password reset, logout, auth guard.
  * Depends on: utils.js, api.js
  */
-if (window.__KD_AUTH_LOADED__) { /* already loaded, skip */ return; }
-window.__KD_AUTH_LOADED__ = true;
 
 
 /**
