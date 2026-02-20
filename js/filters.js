@@ -181,38 +181,38 @@ async function applyFilters() {
                     document.querySelector('[wized="cars-list"]');
   if (!container) return;
 
-  // Build API params — skip empty/default values
+  // Build API params — only include keys with actual values
   const params = {};
 
   // Text search
   if (filterState.search) params.search = filterState.search;
 
-  // Array params → comma-joined strings
-  if (filterState.make.length)     params.make     = filterState.make.join(',');
-  if (filterState.model.length)    params.model    = filterState.model.join(',');
-  if (filterState.year.length)     params.year     = filterState.year.join(',');
-  if (filterState.features.length) params.features = filterState.features.join(',');
+  // Array params — pass as arrays (getCars strips empty ones)
+  if (filterState.make.length)     params.make     = filterState.make;
+  if (filterState.model.length)    params.model    = filterState.model;
+  if (filterState.year.length)     params.year     = filterState.year;
+  if (filterState.features.length) params.features = filterState.features;
 
-  // Range params → integers
-  if (filterState.price_min)    params.price_min    = Number(filterState.price_min);
-  if (filterState.price_max)    params.price_max    = Number(filterState.price_max);
-  if (filterState.mileage_min)  params.mileage_min  = Number(filterState.mileage_min);
-  if (filterState.mileage_max)  params.mileage_max  = Number(filterState.mileage_max);
+  // Range params — cast to Number, skip if falsy
+  if (filterState.price_min)   params.price_min   = Number(filterState.price_min);
+  if (filterState.price_max)   params.price_max   = Number(filterState.price_max);
+  if (filterState.mileage_min) params.mileage_min = Number(filterState.mileage_min);
+  if (filterState.mileage_max) params.mileage_max = Number(filterState.mileage_max);
 
   // Single-value text params
-  if (filterState.body_style)    params.body_style    = filterState.body_style;
-  if (filterState.fuel_type)     params.fuel_type     = filterState.fuel_type;
-  if (filterState.transmission)  params.transmission  = filterState.transmission;
-  if (filterState.condition)     params.condition     = filterState.condition;
-  if (filterState.drivetrain)    params.drivetrain    = filterState.drivetrain;
+  if (filterState.body_style)   params.body_style   = filterState.body_style;
+  if (filterState.fuel_type)    params.fuel_type    = filterState.fuel_type;
+  if (filterState.transmission) params.transmission = filterState.transmission;
+  if (filterState.condition)    params.condition    = filterState.condition;
+  if (filterState.drivetrain)   params.drivetrain   = filterState.drivetrain;
 
   // Sort
   if (filterState.sort_field)     params.sort_field     = filterState.sort_field;
   if (filterState.sort_direction) params.sort_direction = filterState.sort_direction;
 
-  // Pagination (always send)
-  params.current_page = filterState.current_page || 1;
-  params.per_page     = filterState.per_page || 20;
+  // Pagination — always send explicit values
+  params.current_page = filterState.current_page;
+  params.per_page     = filterState.per_page;
 
   showLoading(container);
   try {

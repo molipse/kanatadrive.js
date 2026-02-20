@@ -30,7 +30,14 @@
  * @returns {Promise<Array>}
  */
 async function getCars(filters = {}) {
-  return apiGet('/cars', filters);
+  // Strip out any key whose value is empty string, null, undefined, or empty array
+  const params = {};
+  Object.entries(filters).forEach(([key, val]) => {
+    if (val === null || val === undefined || val === '') return;
+    if (Array.isArray(val) && val.length === 0) return;
+    params[key] = val;
+  });
+  return apiGet('/cars', params);
 }
 
 /**
