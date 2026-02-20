@@ -11,7 +11,22 @@
 
 /**
  * Fetch car listings with optional filters.
- * @param {Object} [filters={}] — query params (make, model, year, price_min, price_max, etc.)
+ * @param {Object} [filters={}] — Xano /cars query params:
+ *   @param {string}   [filters.search]         — full-text search
+ *   @param {string}   [filters.make]            — comma-joined make names  e.g. "Toyota,Honda"
+ *   @param {string}   [filters.model]           — comma-joined model names
+ *   @param {string}   [filters.year]            — comma-joined years        e.g. "2020,2021"
+ *   @param {number}   [filters.price_min]       — minimum price (integer)
+ *   @param {number}   [filters.price_max]       — maximum price (integer)
+ *   @param {number}   [filters.mileage_min]     — minimum mileage (integer)
+ *   @param {number}   [filters.mileage_max]     — maximum mileage (integer)
+ *   @param {string}   [filters.transmission]    — e.g. "Automatic"
+ *   @param {string}   [filters.fuel_type]       — e.g. "Gasoline"
+ *   @param {string}   [filters.condition]       — e.g. "Used"
+ *   @param {string}   [filters.sort_field]      — price | year | mileage | created_at
+ *   @param {string}   [filters.sort_direction]  — asc | desc
+ *   @param {number}   [filters.current_page]    — 1-based page number (default 1)
+ *   @param {number}   [filters.per_page]        — results per page (default 20)
  * @returns {Promise<Array>}
  */
 async function getCars(filters = {}) {
