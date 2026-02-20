@@ -54,6 +54,8 @@ const filterState = {
 
 /**
  * Initialize all filters: load remote data, restore URL state, bind events.
+ * On a fresh page load (no URL params) shows all cars immediately.
+ * On a shared URL (has filter params) restores state and applies filters.
  */
 async function initFilters() {
   _restoreFromUrl();
@@ -74,7 +76,38 @@ async function initFilters() {
 
   _bindStaticFilters();
   _updateSearchInput();
-  applyFilters();
+
+  // If the URL already has filter params (shared link) — apply them.
+  // Otherwise just load all cars with no filters.
+  if (_hasActiveFilters()) {
+    applyFilters();
+  } else {
+    loadAllCars();
+  }
+}
+
+/* ─────────────────────────────────────────
+   LOAD ALL CARS (unfiltered)
+───────────────────────────────────────── */
+
+/**
+ * Fetch and render all cars with no filters applied.
+ * Used on initial page load and after resetFilters().
+ */
+async function loadAllCars() {
+  const container = document.querySelector('[data-kd="cars-list"]') ||
+                    document.querySelector('[wized="cars-list"]');
+  if (!container) return;
+
+  showLoading(container);
+  try {
+    const cars = await getCars({});
+    hideLoading(container);
+    renderCarCards(cars, container);
+  } catch (err) {
+    hideLoading(container);
+    showError(container, err.message || 'Failed to load cars. Please try again.');
+  }
 }
 
 /* ─────────────────────────────────────────
@@ -83,6 +116,7 @@ async function initFilters() {
 
 /**
  * Render make checkboxes into [data-kd="make-filter-list"].
+ * Checking/unchecking immediately triggers applyFilters().
  * @param {Array<{id: number, name: string}>} makes
  */
 function renderMakeCheckboxes(makes) {
@@ -113,10 +147,40 @@ function renderMakeCheckboxes(makes) {
 }
 
 /**
- * Render drivetrain <select> options into [data-kd="drivetrain-filter"].
+ * Render drivetrain checkboxes into [data-kd="drivetrain-filter-list"],
+ * falling back to a <select> at [data-kd="drivetrain-filter"].
+ * Checking/selecting immediately triggers applyFilters().
  * @param {Array<{id: number, name: string}>} drivetrains
  */
 function renderDrivetrainOptions(drivetrains) {
+  // Preferred: checkbox list (matches spec)
+  const list = document.querySelector('[data-kd="drivetrain-filter-list"]');
+  if (list) {
+    list.innerHTML = '';
+    drivetrains.forEach(dt => {
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;font-family:Satoshi,sans-serif;font-size:14px;padding:4px 0;';
+      label.innerHTML = `
+        <input type="checkbox" data-kd="drivetrain-checkbox" value="${dt.id}"
+          ${filterState.drivetrain === String(dt.id) ? 'checked' : ''}
+          style="accent-color:#5720CD;width:16px;height:16px;">
+        ${dt.name}
+      `;
+      label.querySelector('input').addEventListener('change', (e) => {
+        // Drivetrain is single-value — unchecking others when one is picked
+        list.querySelectorAll('[data-kd="drivetrain-checkbox"]').forEach(cb => {
+          if (cb !== e.target) cb.checked = false;
+        });
+        filterState.drivetrain = e.target.checked ? String(dt.id) : '';
+        filterState.current_page = 1;
+        applyFilters();
+      });
+      list.appendChild(label);
+    });
+    return;
+  }
+
+  // Fallback: <select> element
   const select = document.querySelector('[data-kd="drivetrain-filter"]');
   if (!select) return;
 
@@ -138,6 +202,7 @@ function renderDrivetrainOptions(drivetrains) {
 
 /**
  * Render feature checkboxes into [data-kd="features-filter-list"].
+ * Checking/unchecking immediately triggers applyFilters().
  * @param {Array<{id: number, feature_type: string}>} features
  */
 function renderFeatureCheckboxes(features) {
@@ -173,10 +238,16 @@ function renderFeatureCheckboxes(features) {
 ───────────────────────────────────────── */
 
 /**
- * Collect current filter state → fetch cars → render cards.
- * Also persists state to URL and updates the active-filter count badge.
+ * Collect current filterState → fetch cars → render cards.
+ * Persists state to URL and updates chips + count badge.
+ * Triggered by: checkbox change, Apply button, chip removal, Reset.
+ * NOT triggered by: typing in price/mileage inputs (use Apply button).
  */
 async function applyFilters() {
+  // Collect price/mileage values from DOM inputs at apply-time
+  // so the user can type freely without triggering a fetch on every keystroke.
+  _collectRangeInputs();
+
   _persistToUrl();
   renderFilterChips();
   _updateFilterCount();
@@ -185,38 +256,32 @@ async function applyFilters() {
                     document.querySelector('[wized="cars-list"]');
   if (!container) return;
 
-  // Build API params — only include keys with actual values.
-  // Arrays are comma-joined so apiGet's URLSearchParams.set() sends them
-  // as a single ?key=val1,val2 param, which Xano parses as a list.
+  // Build API params — only keys with actual values.
+  // Arrays are comma-joined: apiGet uses URLSearchParams.set() which can't
+  // handle arrays natively; Xano receives ?make=Toyota,Honda and splits on comma.
   const params = {};
 
-  // Text search
   if (filterState.search) params.search = filterState.search;
 
-  // Array params → comma-joined strings (never send empty arrays)
   if (filterState.make.length)     params.make     = filterState.make.join(',');
   if (filterState.model.length)    params.model    = filterState.model.join(',');
   if (filterState.year.length)     params.year     = filterState.year.join(',');
   if (filterState.features.length) params.features = filterState.features.join(',');
 
-  // Range params — cast to Number, skip if falsy/zero
   if (filterState.price_min)   params.price_min   = Number(filterState.price_min);
   if (filterState.price_max)   params.price_max   = Number(filterState.price_max);
   if (filterState.mileage_min) params.mileage_min = Number(filterState.mileage_min);
   if (filterState.mileage_max) params.mileage_max = Number(filterState.mileage_max);
 
-  // Single-value text params
   if (filterState.body_style)   params.body_style   = filterState.body_style;
   if (filterState.fuel_type)    params.fuel_type    = filterState.fuel_type;
   if (filterState.transmission) params.transmission = filterState.transmission;
   if (filterState.condition)    params.condition    = filterState.condition;
   if (filterState.drivetrain)   params.drivetrain   = filterState.drivetrain;
 
-  // Sort — only include when both parts are set
   if (filterState.sort_field)     params.sort_field     = filterState.sort_field;
   if (filterState.sort_direction) params.sort_direction = filterState.sort_direction;
 
-  // Pagination — always send explicit values
   params.current_page = filterState.current_page;
   params.per_page     = filterState.per_page;
 
@@ -229,6 +294,27 @@ async function applyFilters() {
     hideLoading(container);
     showError(container, err.message || 'Failed to load listings.');
   }
+}
+
+/**
+ * Read price and mileage values from DOM inputs into filterState.
+ * Called once inside applyFilters() — inputs are NOT bound to live change events.
+ * @private
+ */
+function _collectRangeInputs() {
+  const fields = ['price_min', 'price_max', 'mileage_min', 'mileage_max'];
+  fields.forEach(key => {
+    // Support both data-kd="price-min" style and data-filter-key="price_min" style
+    const dashKey = key.replace('_', '-');
+    const el = document.querySelector(`[data-kd="${dashKey}"]`) ||
+               document.querySelector(`[data-kd="filter-input"][data-filter-key="${key}"]`);
+    if (el) filterState[key] = el.value.trim();
+  });
+
+  // Search input
+  const searchEl = document.querySelector('[data-kd="search-input"]') ||
+                   document.querySelector('[wized="filter_search_input"]');
+  if (searchEl) filterState.search = searchEl.value.trim();
 }
 
 /* ─────────────────────────────────────────
@@ -246,13 +332,11 @@ function _updateFilterCount() {
 
   let count = 0;
 
-  // Each non-empty array counts as one active filter
   if (filterState.make.length)     count++;
   if (filterState.model.length)    count++;
   if (filterState.year.length)     count++;
   if (filterState.features.length) count++;
 
-  // Each non-empty scalar (excluding pagination and sort_direction which pairs with sort_field)
   const scalarKeys = [
     'search', 'price_min', 'price_max', 'mileage_min', 'mileage_max',
     'body_style', 'fuel_type', 'transmission', 'condition', 'drivetrain',
@@ -270,6 +354,7 @@ function _updateFilterCount() {
 
 /**
  * Render active filter chips into [data-kd="filter-chips"].
+ * Each chip has an ✕ button that clears that filter and re-applies.
  */
 function renderFilterChips() {
   const container = document.querySelector('[data-kd="filter-chips"]');
@@ -278,7 +363,7 @@ function renderFilterChips() {
   container.innerHTML = '';
   let hasChips = false;
 
-  // ── Array filters — one chip per field ──────────────────────────────────────
+  // ── Array filters ────────────────────────────────────────────────────────────
   const arrayFilters = [
     { key: 'make',  label: 'Make' },
     { key: 'model', label: 'Model' },
@@ -297,7 +382,7 @@ function renderFilterChips() {
     }));
   });
 
-  // ── Scalar filters ───────────────────────────────────────────────────────────
+  // ── Scalar filters ────────────────────────────────────────────────────────────
   const scalarLabels = {
     search:       'Search',
     price_min:    'Price from',
@@ -317,20 +402,18 @@ function renderFilterChips() {
     hasChips = true;
     container.appendChild(_buildChip(`${label}: ${val}`, () => {
       filterState[key] = '';
-      // sort_field and sort_direction are paired — clear both
       if (key === 'sort_field') {
         filterState.sort_direction = '';
         const sortSelect = document.querySelector('[data-kd="sort-select"]');
         if (sortSelect) sortSelect.value = '';
       }
-      // Clear the corresponding DOM input/select
       _syncInputForKey(key);
       filterState.current_page = 1;
       applyFilters();
     }));
   });
 
-  // ── Features ─────────────────────────────────────────────────────────────────
+  // ── Features ──────────────────────────────────────────────────────────────────
   if (filterState.features.length > 0) {
     hasChips = true;
     container.appendChild(_buildChip(`Features (${filterState.features.length})`, () => {
@@ -342,7 +425,7 @@ function renderFilterChips() {
     }));
   }
 
-  // ── Show/hide clear-all button ───────────────────────────────────────────────
+  // ── Clear-all visibility ──────────────────────────────────────────────────────
   const clearAll = document.querySelector('[data-kd="filter-clear-all"]');
   if (clearAll) clearAll.style.display = hasChips ? 'inline-flex' : 'none';
 }
@@ -368,35 +451,49 @@ function _buildChip(text, onRemove) {
 }
 
 /**
- * Uncheck all DOM checkboxes for a given array filter key (make / model / year).
- * @param {string} key
+ * Uncheck all DOM checkboxes for a given array filter key.
+ * @param {string} key — 'make' | 'model' | 'year'
  * @private
  */
 function _syncCheckboxes(key) {
-  const selector = key === 'make' ? '[data-kd="make-checkbox"]' : null;
-  if (selector) {
-    document.querySelectorAll(selector).forEach(cb => { cb.checked = false; });
+  const map = {
+    make:  '[data-kd="make-checkbox"]',
+    model: '[data-kd="model-checkbox"]',
+    year:  '[data-kd="year-checkbox"]',
+  };
+  if (map[key]) {
+    document.querySelectorAll(map[key]).forEach(cb => { cb.checked = false; });
   }
 }
 
 /**
- * Reset the DOM input or select that corresponds to a scalar filter key.
+ * Reset the DOM input or select for a scalar filter key.
+ * Supports data-kd="price-min" style, data-filter-key style, and special inputs.
  * @param {string} key
  * @private
  */
 function _syncInputForKey(key) {
-  // Generic filter-select
+  // data-kd="price-min" / "mileage-max" etc.
+  const dashKey = key.replace('_', '-');
+  const direct = document.querySelector(`[data-kd="${dashKey}"]`);
+  if (direct && (direct.tagName === 'INPUT' || direct.tagName === 'SELECT')) {
+    direct.value = '';
+    return;
+  }
+
+  // data-kd="filter-select" with data-filter-key
   const select = document.querySelector(`[data-kd="filter-select"][data-filter-key="${key}"]`);
   if (select) { select.value = ''; return; }
 
-  // Generic filter-input
+  // data-kd="filter-input" with data-filter-key
   const input = document.querySelector(`[data-kd="filter-input"][data-filter-key="${key}"]`);
   if (input) { input.value = ''; return; }
 
-  // Search input (special wized attribute)
+  // Search (both naming conventions)
   if (key === 'search') {
-    const searchInput = document.querySelector('[wized="filter_search_input"]');
-    if (searchInput) searchInput.value = '';
+    [document.querySelector('[data-kd="search-input"]'),
+     document.querySelector('[wized="filter_search_input"]')]
+      .forEach(el => { if (el) el.value = ''; });
   }
 }
 
@@ -405,16 +502,16 @@ function _syncInputForKey(key) {
 ───────────────────────────────────────── */
 
 /**
- * Clear all active filters and re-fetch.
+ * Clear all active filters, reset DOM, clear URL params, then load all cars.
  */
 function resetFilters() {
-  // Arrays
+  // State — arrays
   filterState.make     = [];
   filterState.model    = [];
   filterState.year     = [];
   filterState.features = [];
 
-  // Scalars
+  // State — scalars
   filterState.search        = '';
   filterState.price_min     = '';
   filterState.price_max     = '';
@@ -428,39 +525,69 @@ function resetFilters() {
   filterState.sort_field    = '';
   filterState.sort_direction = '';
 
-  // Pagination
+  // State — pagination
   filterState.current_page = 1;
   filterState.per_page     = 20;
 
-  // Reset DOM — checkboxes
-  document.querySelectorAll('[data-kd="make-checkbox"], [data-kd="feature-checkbox"]')
-    .forEach(cb => { cb.checked = false; });
+  // DOM — checkboxes
+  document.querySelectorAll(
+    '[data-kd="make-checkbox"], [data-kd="feature-checkbox"], [data-kd="drivetrain-checkbox"]'
+  ).forEach(cb => { cb.checked = false; });
 
-  // Reset DOM — generic selects and inputs
-  document.querySelectorAll('[data-kd="filter-select"]')
-    .forEach(sel => { sel.value = ''; });
-  document.querySelectorAll('[data-kd="filter-input"]')
-    .forEach(inp => { inp.value = ''; });
+  // DOM — range/text inputs (data-kd="price-min" etc.)
+  ['price-min', 'price-max', 'mileage-min', 'mileage-max'].forEach(attr => {
+    const el = document.querySelector(`[data-kd="${attr}"]`);
+    if (el) el.value = '';
+  });
 
-  // Reset DOM — dedicated controls
-  const searchInput = document.querySelector('[wized="filter_search_input"]');
-  if (searchInput) searchInput.value = '';
+  // DOM — generic selects and inputs
+  document.querySelectorAll('[data-kd="filter-select"]').forEach(sel => { sel.value = ''; });
+  document.querySelectorAll('[data-kd="filter-input"]').forEach(inp => { inp.value = ''; });
+
+  // DOM — dedicated controls
+  [document.querySelector('[data-kd="search-input"]'),
+   document.querySelector('[wized="filter_search_input"]')]
+    .forEach(el => { if (el) el.value = ''; });
 
   const sortSelect = document.querySelector('[data-kd="sort-select"]');
   if (sortSelect) sortSelect.value = '';
 
   const perPageSelect = document.querySelector('[data-kd="per-page-select"]');
-  if (perPageSelect) perPageSelect.value = String(filterState.per_page);
+  if (perPageSelect) perPageSelect.value = '20';
 
   const drivetrainSelect = document.querySelector('[data-kd="drivetrain-filter"]');
   if (drivetrainSelect) drivetrainSelect.value = '';
 
-  applyFilters();
+  // Clear chips and badge immediately (don't wait for loadAllCars)
+  const chips = document.querySelector('[data-kd="filter-chips"]');
+  if (chips) chips.innerHTML = '';
+
+  const clearAll = document.querySelector('[data-kd="filter-clear-all"]');
+  if (clearAll) clearAll.style.display = 'none';
+
+  const badge = document.querySelector('[data-kd="filter-count"]');
+  if (badge) { badge.textContent = '0'; badge.style.display = 'none'; }
+
+  // Clear URL params
+  window.history.pushState({}, '', window.location.pathname);
+
+  // Reload all cars unfiltered
+  loadAllCars();
 }
 
 /* ─────────────────────────────────────────
    URL PERSISTENCE
 ───────────────────────────────────────── */
+
+/**
+ * Returns true if the current URL has any filter query params.
+ * Used on init to decide between loadAllCars() and applyFilters().
+ * @returns {boolean}
+ * @private
+ */
+function _hasActiveFilters() {
+  return new URLSearchParams(window.location.search).toString().length > 0;
+}
 
 /**
  * Write current filterState to URL query params (no page reload).
@@ -489,8 +616,8 @@ function _persistToUrl() {
  * @private
  */
 function _restoreFromUrl() {
-  const arrayKeys = ['make', 'model', 'features'];  // strings
-  const intArrayKeys = ['year'];                      // integers
+  const arrayKeys    = ['make', 'model', 'features']; // string arrays
+  const intArrayKeys = ['year'];                        // integer arrays
 
   Object.keys(filterState).forEach(key => {
     const val = getUrlParam(key);
@@ -516,35 +643,58 @@ function _restoreFromUrl() {
 ───────────────────────────────────────── */
 
 /**
- * Bind all static filter controls to filterState.
- * Supports:
- *   [wized="filter_search_input"]                          — debounced text search
- *   [data-kd="filter-select"][data-filter-key="<field>"]  — single-value selects
- *   [data-kd="filter-input"][data-filter-key="<field>"]   — range / text inputs
- *   [data-kd="sort-select"]                               — combined "field:direction"
- *   [data-kd="per-page-select"]                           — per_page
- *   [data-kd="filter-apply"]                              — manual apply button
- *   [data-kd="filter-reset"]                              — reset all button
- *   [data-kd="filter-clear-all"]                          — clear-all chips button
+ * Bind all static filter controls.
+ *
+ * Trigger rules:
+ *   Checkboxes (make, drivetrain, features) → applyFilters() immediately on change
+ *   Price / mileage inputs                  → NO auto-apply; wait for Apply button
+ *   Search input                            → applyFilters() on Enter OR after 500ms debounce
+ *   Sort select                             → applyFilters() immediately on change
+ *   Per-page select                         → applyFilters() immediately on change
+ *   [data-kd="filter-apply"]               → applyFilters() (collects range inputs first)
+ *   [data-kd="filter-reset"]               → resetFilters() then loadAllCars()
+ *   [data-kd="filter-clear-all"]           → resetFilters() then loadAllCars()
+ *
  * @private
  */
 function _bindStaticFilters() {
-  // ── Search input (debounced) ─────────────────────────────────────────────────
-  const searchInput = document.querySelector('[wized="filter_search_input"]');
-  if (searchInput) {
+  // ── Search input — apply on Enter or after 500ms debounce ───────────────────
+  const searchEl = document.querySelector('[data-kd="search-input"]') ||
+                   document.querySelector('[wized="filter_search_input"]');
+  if (searchEl) {
     const debouncedSearch = debounce(() => {
-      filterState.search = searchInput.value.trim();
+      filterState.search = searchEl.value.trim();
       filterState.current_page = 1;
       applyFilters();
-    }, 400);
-    searchInput.addEventListener('input', debouncedSearch);
+    }, 500);
+    searchEl.addEventListener('input', debouncedSearch);
+    searchEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        filterState.search = searchEl.value.trim();
+        filterState.current_page = 1;
+        applyFilters();
+      }
+    });
   }
 
-  // ── Generic selects ──────────────────────────────────────────────────────────
+  // ── Price / mileage inputs — bound to filterState but NO auto-apply ─────────
+  // Values are read from DOM by _collectRangeInputs() inside applyFilters().
+  // Restore DOM values from URL-restored state on init.
+  ['price_min', 'price_max', 'mileage_min', 'mileage_max'].forEach(key => {
+    const dashKey = key.replace('_', '-');
+    const el = document.querySelector(`[data-kd="${dashKey}"]`) ||
+               document.querySelector(`[data-kd="filter-input"][data-filter-key="${key}"]`);
+    if (el && filterState[key]) el.value = filterState[key];
+    // Intentionally no 'change' / 'input' event listener here
+  });
+
+  // ── Generic selects (non-range) — apply immediately on change ───────────────
   document.querySelectorAll('[data-kd="filter-select"]').forEach(select => {
     const key = select.getAttribute('data-filter-key');
     if (!key) return;
-    // Restore DOM value from state
+    // Skip range fields — those are handled by Apply button
+    if (['price_min', 'price_max', 'mileage_min', 'mileage_max'].includes(key)) return;
     if (!Array.isArray(filterState[key]) && filterState[key]) {
       select.value = filterState[key];
     }
@@ -555,19 +705,7 @@ function _bindStaticFilters() {
     });
   });
 
-  // ── Generic range / text inputs ──────────────────────────────────────────────
-  document.querySelectorAll('[data-kd="filter-input"]').forEach(input => {
-    const key = input.getAttribute('data-filter-key');
-    if (!key) return;
-    if (filterState[key]) input.value = filterState[key];
-    input.addEventListener('change', () => {
-      filterState[key] = input.value.trim();
-      filterState.current_page = 1;
-      applyFilters();
-    });
-  });
-
-  // ── Sort select — value format "field:direction" e.g. "price:asc" ───────────
+  // ── Sort select — apply immediately on change ────────────────────────────────
   const sortSelect = document.querySelector('[data-kd="sort-select"]');
   if (sortSelect) {
     if (filterState.sort_field) {
@@ -582,7 +720,7 @@ function _bindStaticFilters() {
     });
   }
 
-  // ── Per-page select ──────────────────────────────────────────────────────────
+  // ── Per-page select — apply immediately on change ────────────────────────────
   const perPageSelect = document.querySelector('[data-kd="per-page-select"]');
   if (perPageSelect) {
     perPageSelect.value = String(filterState.per_page);
@@ -593,7 +731,7 @@ function _bindStaticFilters() {
     });
   }
 
-  // ── Manual apply button ──────────────────────────────────────────────────────
+  // ── Apply button — collects range inputs then applies ────────────────────────
   const applyBtn = document.querySelector('[data-kd="filter-apply"]');
   if (applyBtn) {
     applyBtn.addEventListener('click', () => {
@@ -608,7 +746,7 @@ function _bindStaticFilters() {
     resetBtn.addEventListener('click', resetFilters);
   }
 
-  // ── Clear-all chips button ───────────────────────────────────────────────────
+  // ── Clear-all chips button ────────────────────────────────────────────────────
   const clearAll = document.querySelector('[data-kd="filter-clear-all"]');
   if (clearAll) {
     clearAll.style.display = 'none';
@@ -617,12 +755,13 @@ function _bindStaticFilters() {
 }
 
 /**
- * Populate the search input from filterState on init (after URL restore).
+ * Populate filter inputs from filterState after URL restore (init only).
  * @private
  */
 function _updateSearchInput() {
-  const searchInput = document.querySelector('[wized="filter_search_input"]');
-  if (searchInput && filterState.search) searchInput.value = filterState.search;
+  const searchEl = document.querySelector('[data-kd="search-input"]') ||
+                   document.querySelector('[wized="filter_search_input"]');
+  if (searchEl && filterState.search) searchEl.value = filterState.search;
 }
 
 /* ─────────────────────────────────────────
@@ -630,7 +769,6 @@ function _updateSearchInput() {
 ───────────────────────────────────────── */
 
 function initFiltersPage() {
-  // Run only when a catalog container exists on the page
   const hasCatalog =
     document.querySelector('[data-kd="cars-list"]') ||
     document.querySelector('[wized="cars-list"]');
@@ -649,3 +787,4 @@ if (document.readyState === 'loading') {
 window.initFilters  = initFilters;
 window.applyFilters = applyFilters;
 window.resetFilters = resetFilters;
+window.loadAllCars  = loadAllCars;
