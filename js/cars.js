@@ -30,15 +30,26 @@
  * @returns {Promise<Array>}
  */
 async function getCars(filters = {}) {
-  // Strip out any key whose value is empty string, null, undefined, or empty array
+  // Xano /cars expects PHP-style bracket notation for array params:
+  //   make[0]=Ford&make[1]=Tesla  (NOT make=Ford,Tesla)
+  // apiGet uses URLSearchParams.set() which can't produce bracket keys,
+  // so we expand arrays into indexed keys here before passing to apiGet.
   const params = {};
+
   Object.entries(filters).forEach(([key, val]) => {
     if (val === null || val === undefined || val === '') return;
-    if (Array.isArray(val) && val.length === 0) return;
-    params[key] = val;
+    if (Array.isArray(val)) {
+      if (val.length === 0) return;
+      val.forEach((item, i) => {
+        params[`${key}[${i}]`] = item;
+      });
+    } else {
+      params[key] = val;
+    }
   });
+
   const data = await apiGet('/cars', params);
-  // Xano can return either a flat array or a paginated object { items: [...], ... }
+  // Xano returns a flat array [] or a paginated object { items: [...] }
   if (Array.isArray(data)) return data;
   if (data && Array.isArray(data.items)) return data.items;
   return [];

@@ -271,10 +271,11 @@ async function applyFilters() {
 
   if (filterState.search) params.search = filterState.search;
 
-  if (filterState.make.length)     params.make     = filterState.make.join(',');
-  if (filterState.model.length)    params.model    = filterState.model.join(',');
-  if (filterState.year.length)     params.year     = filterState.year.join(',');
-  if (filterState.features.length) params.features = filterState.features.join(',');
+  // Pass arrays as-is — getCars expands them to make[0]=Ford&make[1]=Tesla bracket notation
+  if (filterState.make.length)     params.make     = filterState.make;
+  if (filterState.model.length)    params.model    = filterState.model;
+  if (filterState.year.length)     params.year     = filterState.year;
+  if (filterState.features.length) params.features = filterState.features;
 
   if (filterState.price_min)   params.price_min   = Number(filterState.price_min);
   if (filterState.price_max)   params.price_max   = Number(filterState.price_max);
