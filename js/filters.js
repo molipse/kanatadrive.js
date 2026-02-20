@@ -124,20 +124,24 @@ function renderMakeCheckboxes(makes) {
   if (!container) return;
 
   container.innerHTML = '';
-  makes.forEach(make => {
+  makes.forEach(makeObj => {
+    // API returns { id, make: "Ford" } — the name field is "make", not "name"
+    const makeName = makeObj.make || makeObj.name || '';
+    if (!makeName) return;
+
     const label = document.createElement('label');
     label.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;font-family:Satoshi,sans-serif;font-size:14px;padding:4px 0;';
     label.innerHTML = `
-      <input type="checkbox" data-kd="make-checkbox" value="${make.name}"
-        ${filterState.make.includes(make.name) ? 'checked' : ''}
+      <input type="checkbox" data-kd="make-checkbox" value="${makeName}"
+        ${filterState.make.includes(makeName) ? 'checked' : ''}
         style="accent-color:#5720CD;width:16px;height:16px;">
-      ${make.name}
+      ${makeName}
     `;
     label.querySelector('input').addEventListener('change', (e) => {
       if (e.target.checked) {
-        if (!filterState.make.includes(make.name)) filterState.make.push(make.name);
+        if (!filterState.make.includes(makeName)) filterState.make.push(makeName);
       } else {
-        filterState.make = filterState.make.filter(m => m !== make.name);
+        filterState.make = filterState.make.filter(m => m !== makeName);
       }
       filterState.current_page = 1;
       applyFilters();
@@ -158,16 +162,20 @@ function renderDrivetrainOptions(drivetrains) {
   if (list) {
     list.innerHTML = '';
     drivetrains.forEach(dt => {
+      // API returns { id, drivetrain_type: "AWD" } — name field is "drivetrain_type"
+      const dtName = dt.drivetrain_type || dt.name || '';
+      if (!dtName) return;
+
       const label = document.createElement('label');
       label.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;font-family:Satoshi,sans-serif;font-size:14px;padding:4px 0;';
       label.innerHTML = `
         <input type="checkbox" data-kd="drivetrain-checkbox" value="${dt.id}"
           ${filterState.drivetrain === String(dt.id) ? 'checked' : ''}
           style="accent-color:#5720CD;width:16px;height:16px;">
-        ${dt.name}
+        ${dtName}
       `;
       label.querySelector('input').addEventListener('change', (e) => {
-        // Drivetrain is single-value — unchecking others when one is picked
+        // Drivetrain is single-value — uncheck others when one is picked
         list.querySelectorAll('[data-kd="drivetrain-checkbox"]').forEach(cb => {
           if (cb !== e.target) cb.checked = false;
         });
@@ -188,7 +196,7 @@ function renderDrivetrainOptions(drivetrains) {
   drivetrains.forEach(dt => {
     const option = document.createElement('option');
     option.value = dt.id;
-    option.textContent = dt.name;
+    option.textContent = dt.drivetrain_type || dt.name || '';
     if (filterState.drivetrain === String(dt.id)) option.selected = true;
     select.appendChild(option);
   });

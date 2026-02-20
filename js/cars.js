@@ -37,7 +37,11 @@ async function getCars(filters = {}) {
     if (Array.isArray(val) && val.length === 0) return;
     params[key] = val;
   });
-  return apiGet('/cars', params);
+  const data = await apiGet('/cars', params);
+  // Xano can return either a flat array or a paginated object { items: [...], ... }
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.items)) return data.items;
+  return [];
 }
 
 /**
