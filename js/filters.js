@@ -18,7 +18,7 @@ const filterState = {
   // Text search
   search: '',
 
-  // Multi-value filters (arrays → comma-joined for API)
+  // Multi-value filters (arrays — serialised to comma strings for the API)
   make: [],          // array of make name strings
   model: [],         // array of model name strings
   year: [],          // array of integers
@@ -68,8 +68,8 @@ async function initFilters() {
     renderMakeCheckboxes(makes);
     renderDrivetrainOptions(drivetrains);
     renderFeatureCheckboxes(features);
-  } catch (err) {
-    // Filter load failure is non-critical — log for debugging
+  } catch (_err) {
+    // Filter list load failure is non-critical — UI still works without it
   }
 
   _bindStaticFilters();
@@ -105,6 +105,7 @@ function renderMakeCheckboxes(makes) {
       } else {
         filterState.make = filterState.make.filter(m => m !== make.name);
       }
+      filterState.current_page = 1;
       applyFilters();
     });
     container.appendChild(label);
@@ -130,6 +131,7 @@ function renderDrivetrainOptions(drivetrains) {
 
   select.addEventListener('change', () => {
     filterState.drivetrain = select.value;
+    filterState.current_page = 1;
     applyFilters();
   });
 }
@@ -159,6 +161,7 @@ function renderFeatureCheckboxes(features) {
       } else {
         filterState.features = filterState.features.filter(id => id !== val);
       }
+      filterState.current_page = 1;
       applyFilters();
     });
     container.appendChild(label);
@@ -171,29 +174,32 @@ function renderFeatureCheckboxes(features) {
 
 /**
  * Collect current filter state → fetch cars → render cards.
- * Also persists state to URL.
+ * Also persists state to URL and updates the active-filter count badge.
  */
 async function applyFilters() {
   _persistToUrl();
   renderFilterChips();
+  _updateFilterCount();
 
   const container = document.querySelector('[data-kd="cars-list"]') ||
                     document.querySelector('[wized="cars-list"]');
   if (!container) return;
 
-  // Build API params — only include keys with actual values
+  // Build API params — only include keys with actual values.
+  // Arrays are comma-joined so apiGet's URLSearchParams.set() sends them
+  // as a single ?key=val1,val2 param, which Xano parses as a list.
   const params = {};
 
   // Text search
   if (filterState.search) params.search = filterState.search;
 
-  // Array params — pass as arrays (getCars strips empty ones)
-  if (filterState.make.length)     params.make     = filterState.make;
-  if (filterState.model.length)    params.model    = filterState.model;
-  if (filterState.year.length)     params.year     = filterState.year;
-  if (filterState.features.length) params.features = filterState.features;
+  // Array params → comma-joined strings (never send empty arrays)
+  if (filterState.make.length)     params.make     = filterState.make.join(',');
+  if (filterState.model.length)    params.model    = filterState.model.join(',');
+  if (filterState.year.length)     params.year     = filterState.year.join(',');
+  if (filterState.features.length) params.features = filterState.features.join(',');
 
-  // Range params — cast to Number, skip if falsy
+  // Range params — cast to Number, skip if falsy/zero
   if (filterState.price_min)   params.price_min   = Number(filterState.price_min);
   if (filterState.price_max)   params.price_max   = Number(filterState.price_max);
   if (filterState.mileage_min) params.mileage_min = Number(filterState.mileage_min);
@@ -206,7 +212,7 @@ async function applyFilters() {
   if (filterState.condition)    params.condition    = filterState.condition;
   if (filterState.drivetrain)   params.drivetrain   = filterState.drivetrain;
 
-  // Sort
+  // Sort — only include when both parts are set
   if (filterState.sort_field)     params.sort_field     = filterState.sort_field;
   if (filterState.sort_direction) params.sort_direction = filterState.sort_direction;
 
@@ -226,6 +232,39 @@ async function applyFilters() {
 }
 
 /* ─────────────────────────────────────────
+   FILTER COUNT BADGE
+───────────────────────────────────────── */
+
+/**
+ * Update [data-kd="filter-count"] with the number of active filters.
+ * Hides the badge when count is zero.
+ * @private
+ */
+function _updateFilterCount() {
+  const badge = document.querySelector('[data-kd="filter-count"]');
+  if (!badge) return;
+
+  let count = 0;
+
+  // Each non-empty array counts as one active filter
+  if (filterState.make.length)     count++;
+  if (filterState.model.length)    count++;
+  if (filterState.year.length)     count++;
+  if (filterState.features.length) count++;
+
+  // Each non-empty scalar (excluding pagination and sort_direction which pairs with sort_field)
+  const scalarKeys = [
+    'search', 'price_min', 'price_max', 'mileage_min', 'mileage_max',
+    'body_style', 'fuel_type', 'transmission', 'condition', 'drivetrain',
+    'sort_field',
+  ];
+  scalarKeys.forEach(key => { if (filterState[key]) count++; });
+
+  badge.textContent = String(count);
+  badge.style.display = count > 0 ? 'inline-flex' : 'none';
+}
+
+/* ─────────────────────────────────────────
    FILTER CHIPS
 ───────────────────────────────────────── */
 
@@ -237,10 +276,9 @@ function renderFilterChips() {
   if (!container) return;
 
   container.innerHTML = '';
-
   let hasChips = false;
 
-  // Array filters — one chip per array showing count or values
+  // ── Array filters — one chip per field ──────────────────────────────────────
   const arrayFilters = [
     { key: 'make',  label: 'Make' },
     { key: 'model', label: 'Model' },
@@ -253,11 +291,13 @@ function renderFilterChips() {
     const display = arr.length === 1 ? `${label}: ${arr[0]}` : `${label} (${arr.length})`;
     container.appendChild(_buildChip(display, () => {
       filterState[key] = [];
+      filterState.current_page = 1;
+      _syncCheckboxes(key);
       applyFilters();
     }));
   });
 
-  // Scalar filters
+  // ── Scalar filters ───────────────────────────────────────────────────────────
   const scalarLabels = {
     search:       'Search',
     price_min:    'Price from',
@@ -277,26 +317,38 @@ function renderFilterChips() {
     hasChips = true;
     container.appendChild(_buildChip(`${label}: ${val}`, () => {
       filterState[key] = '';
+      // sort_field and sort_direction are paired — clear both
+      if (key === 'sort_field') {
+        filterState.sort_direction = '';
+        const sortSelect = document.querySelector('[data-kd="sort-select"]');
+        if (sortSelect) sortSelect.value = '';
+      }
+      // Clear the corresponding DOM input/select
+      _syncInputForKey(key);
+      filterState.current_page = 1;
       applyFilters();
     }));
   });
 
-  // Features
+  // ── Features ─────────────────────────────────────────────────────────────────
   if (filterState.features.length > 0) {
     hasChips = true;
     container.appendChild(_buildChip(`Features (${filterState.features.length})`, () => {
       filterState.features = [];
+      filterState.current_page = 1;
+      document.querySelectorAll('[data-kd="feature-checkbox"]')
+        .forEach(cb => { cb.checked = false; });
       applyFilters();
     }));
   }
 
-  // Show/hide clear-all
+  // ── Show/hide clear-all button ───────────────────────────────────────────────
   const clearAll = document.querySelector('[data-kd="filter-clear-all"]');
   if (clearAll) clearAll.style.display = hasChips ? 'inline-flex' : 'none';
 }
 
 /**
- * Build a single chip element.
+ * Build a single removable chip element.
  * @param {string} text
  * @param {Function} onRemove
  * @returns {HTMLElement}
@@ -310,9 +362,42 @@ function _buildChip(text, onRemove) {
     padding:4px 10px;border-radius:20px;
     font-size:13px;font-family:Satoshi,sans-serif;
   `;
-  chip.innerHTML = `${text} <button style="background:none;border:none;cursor:pointer;color:#5720CD;font-size:16px;line-height:1;padding:0;">×</button>`;
+  chip.innerHTML = `${text} <button style="background:none;border:none;cursor:pointer;color:#5720CD;font-size:16px;line-height:1;padding:0;" aria-label="Remove filter">×</button>`;
   chip.querySelector('button').addEventListener('click', onRemove);
   return chip;
+}
+
+/**
+ * Uncheck all DOM checkboxes for a given array filter key (make / model / year).
+ * @param {string} key
+ * @private
+ */
+function _syncCheckboxes(key) {
+  const selector = key === 'make' ? '[data-kd="make-checkbox"]' : null;
+  if (selector) {
+    document.querySelectorAll(selector).forEach(cb => { cb.checked = false; });
+  }
+}
+
+/**
+ * Reset the DOM input or select that corresponds to a scalar filter key.
+ * @param {string} key
+ * @private
+ */
+function _syncInputForKey(key) {
+  // Generic filter-select
+  const select = document.querySelector(`[data-kd="filter-select"][data-filter-key="${key}"]`);
+  if (select) { select.value = ''; return; }
+
+  // Generic filter-input
+  const input = document.querySelector(`[data-kd="filter-input"][data-filter-key="${key}"]`);
+  if (input) { input.value = ''; return; }
+
+  // Search input (special wized attribute)
+  if (key === 'search') {
+    const searchInput = document.querySelector('[wized="filter_search_input"]');
+    if (searchInput) searchInput.value = '';
+  }
 }
 
 /* ─────────────────────────────────────────
@@ -343,20 +428,32 @@ function resetFilters() {
   filterState.sort_field    = '';
   filterState.sort_direction = '';
 
-  // Reset pagination
-  filterState.current_page  = 1;
-  filterState.per_page      = 20;
+  // Pagination
+  filterState.current_page = 1;
+  filterState.per_page     = 20;
 
-  // Reset DOM inputs
+  // Reset DOM — checkboxes
   document.querySelectorAll('[data-kd="make-checkbox"], [data-kd="feature-checkbox"]')
     .forEach(cb => { cb.checked = false; });
+
+  // Reset DOM — generic selects and inputs
   document.querySelectorAll('[data-kd="filter-select"]')
     .forEach(sel => { sel.value = ''; });
   document.querySelectorAll('[data-kd="filter-input"]')
     .forEach(inp => { inp.value = ''; });
 
+  // Reset DOM — dedicated controls
   const searchInput = document.querySelector('[wized="filter_search_input"]');
   if (searchInput) searchInput.value = '';
+
+  const sortSelect = document.querySelector('[data-kd="sort-select"]');
+  if (sortSelect) sortSelect.value = '';
+
+  const perPageSelect = document.querySelector('[data-kd="per-page-select"]');
+  if (perPageSelect) perPageSelect.value = String(filterState.per_page);
+
+  const drivetrainSelect = document.querySelector('[data-kd="drivetrain-filter"]');
+  if (drivetrainSelect) drivetrainSelect.value = '';
 
   applyFilters();
 }
@@ -366,12 +463,13 @@ function resetFilters() {
 ───────────────────────────────────────── */
 
 /**
- * Write current filterState to URL query params.
+ * Write current filterState to URL query params (no page reload).
+ * Pagination is excluded to keep URLs clean and shareable.
  * @private
  */
 function _persistToUrl() {
   const arrayKeys = ['make', 'model', 'year', 'features'];
-  const skipKeys  = ['current_page', 'per_page']; // don't clutter URL with pagination defaults
+  const skipKeys  = ['current_page', 'per_page'];
   const params = {};
 
   Object.entries(filterState).forEach(([key, val]) => {
@@ -382,6 +480,7 @@ function _persistToUrl() {
       params[key] = val || null;
     }
   });
+
   setUrlParams(params);
 }
 
@@ -390,15 +489,22 @@ function _persistToUrl() {
  * @private
  */
 function _restoreFromUrl() {
-  const arrayKeys = ['make', 'model', 'year', 'features'];
+  const arrayKeys = ['make', 'model', 'features'];  // strings
+  const intArrayKeys = ['year'];                      // integers
 
   Object.keys(filterState).forEach(key => {
     const val = getUrlParam(key);
     if (val === null) return;
+
     if (arrayKeys.includes(key)) {
       filterState[key] = val ? val.split(',') : [];
+    } else if (intArrayKeys.includes(key)) {
+      filterState[key] = val
+        ? val.split(',').map(Number).filter(n => !isNaN(n))
+        : [];
     } else if (key === 'current_page' || key === 'per_page') {
-      filterState[key] = val ? Number(val) : filterState[key];
+      const n = Number(val);
+      if (!isNaN(n) && n > 0) filterState[key] = n;
     } else {
       filterState[key] = val;
     }
@@ -410,17 +516,20 @@ function _restoreFromUrl() {
 ───────────────────────────────────────── */
 
 /**
- * Bind static filter inputs (selects, range inputs, search, sort).
+ * Bind all static filter controls to filterState.
  * Supports:
- *   [wized="filter_search_input"]           — text search
- *   [data-kd="filter-select"][data-filter-key="..."]  — single-value selects
- *   [data-kd="filter-input"][data-filter-key="..."]   — range/text inputs
- *   [data-kd="sort-select"]                — sort_field + sort_direction combined
- *   [data-kd="per-page-select"]            — per_page
+ *   [wized="filter_search_input"]                          — debounced text search
+ *   [data-kd="filter-select"][data-filter-key="<field>"]  — single-value selects
+ *   [data-kd="filter-input"][data-filter-key="<field>"]   — range / text inputs
+ *   [data-kd="sort-select"]                               — combined "field:direction"
+ *   [data-kd="per-page-select"]                           — per_page
+ *   [data-kd="filter-apply"]                              — manual apply button
+ *   [data-kd="filter-reset"]                              — reset all button
+ *   [data-kd="filter-clear-all"]                          — clear-all chips button
  * @private
  */
 function _bindStaticFilters() {
-  // ── Search ──────────────────────────────────────────────────────────────────
+  // ── Search input (debounced) ─────────────────────────────────────────────────
   const searchInput = document.querySelector('[wized="filter_search_input"]');
   if (searchInput) {
     const debouncedSearch = debounce(() => {
@@ -431,14 +540,12 @@ function _bindStaticFilters() {
     searchInput.addEventListener('input', debouncedSearch);
   }
 
-  // ── Generic selects: data-kd="filter-select" data-filter-key="field" ───────
+  // ── Generic selects ──────────────────────────────────────────────────────────
   document.querySelectorAll('[data-kd="filter-select"]').forEach(select => {
     const key = select.getAttribute('data-filter-key');
     if (!key) return;
-    // Restore value
-    if (Array.isArray(filterState[key])) {
-      // multi-value stored as array — not typical for a single select, skip
-    } else if (filterState[key]) {
+    // Restore DOM value from state
+    if (!Array.isArray(filterState[key]) && filterState[key]) {
       select.value = filterState[key];
     }
     select.addEventListener('change', () => {
@@ -448,7 +555,7 @@ function _bindStaticFilters() {
     });
   });
 
-  // ── Generic inputs: data-kd="filter-input" data-filter-key="field" ─────────
+  // ── Generic range / text inputs ──────────────────────────────────────────────
   document.querySelectorAll('[data-kd="filter-input"]').forEach(input => {
     const key = input.getAttribute('data-filter-key');
     if (!key) return;
@@ -460,10 +567,9 @@ function _bindStaticFilters() {
     });
   });
 
-  // ── Sort select: value format "field:direction" e.g. "price:asc" ───────────
+  // ── Sort select — value format "field:direction" e.g. "price:asc" ───────────
   const sortSelect = document.querySelector('[data-kd="sort-select"]');
   if (sortSelect) {
-    // Restore
     if (filterState.sort_field) {
       sortSelect.value = `${filterState.sort_field}:${filterState.sort_direction || 'asc'}`;
     }
@@ -476,10 +582,10 @@ function _bindStaticFilters() {
     });
   }
 
-  // ── Per-page select ─────────────────────────────────────────────────────────
+  // ── Per-page select ──────────────────────────────────────────────────────────
   const perPageSelect = document.querySelector('[data-kd="per-page-select"]');
   if (perPageSelect) {
-    perPageSelect.value = filterState.per_page;
+    perPageSelect.value = String(filterState.per_page);
     perPageSelect.addEventListener('change', () => {
       filterState.per_page     = Number(perPageSelect.value) || 20;
       filterState.current_page = 1;
@@ -487,7 +593,22 @@ function _bindStaticFilters() {
     });
   }
 
-  // ── Clear all button ────────────────────────────────────────────────────────
+  // ── Manual apply button ──────────────────────────────────────────────────────
+  const applyBtn = document.querySelector('[data-kd="filter-apply"]');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => {
+      filterState.current_page = 1;
+      applyFilters();
+    });
+  }
+
+  // ── Reset button ─────────────────────────────────────────────────────────────
+  const resetBtn = document.querySelector('[data-kd="filter-reset"]');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', resetFilters);
+  }
+
+  // ── Clear-all chips button ───────────────────────────────────────────────────
   const clearAll = document.querySelector('[data-kd="filter-clear-all"]');
   if (clearAll) {
     clearAll.style.display = 'none';
@@ -496,7 +617,7 @@ function _bindStaticFilters() {
 }
 
 /**
- * Populate the search input from filterState on init.
+ * Populate the search input from filterState on init (after URL restore).
  * @private
  */
 function _updateSearchInput() {
@@ -525,6 +646,6 @@ if (document.readyState === 'loading') {
   initFiltersPage();
 }
 
-window.initFilters = initFilters;
+window.initFilters  = initFilters;
 window.applyFilters = applyFilters;
 window.resetFilters = resetFilters;
