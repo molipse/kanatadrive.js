@@ -192,6 +192,10 @@ function initFavorites() {
   }
 }
 
+window.initFavorites = initFavorites;
+window.renderFavorites = renderFavorites;
+window.toggleFavorite = toggleFavorite;
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initFavorites);
 } else {

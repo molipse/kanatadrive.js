@@ -393,6 +393,10 @@ function initFiltersPage() {
   initFilters();
 }
 
+window.initFilters = initFilters;
+window.applyFilters = applyFilters;
+window.resetFilters = resetFilters;
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initFiltersPage);
 } else {

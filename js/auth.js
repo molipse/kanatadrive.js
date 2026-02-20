@@ -249,7 +249,13 @@ function initResetPasswordForm() {
    AUTO-INIT
 ───────────────────────────────────────── */
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.login = login;
+window.logout = logout;
+window.checkAuth = checkAuth;
+window.initLoginForm = initLoginForm;
+window.initRegisterForm = initRegisterForm;
+
+async function initAuth() {
   const path = window.location.pathname;
 
   // Always bind logout buttons (present in nav on all pages)
@@ -290,4 +296,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     initResetPasswordForm();
     return;
   }
-});
+}
+
+window.initAuth = initAuth;
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAuth);
+} else {
+  initAuth();
+}

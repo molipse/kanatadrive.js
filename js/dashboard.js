@@ -363,7 +363,13 @@ function _collectAccountFormData(form) {
    AUTO-INIT
 ───────────────────────────────────────── */
 
-document.addEventListener('DOMContentLoaded', async () => {
+window.initMyListings = initMyListings;
+window.initAddCar = initAddCar;
+window.initEditCar = initEditCar;
+window.initRequests = initRequests;
+window.initAccount = initAccount;
+
+async function initDashboard() {
   const path = window.location.pathname;
 
   // Only run on dashboard pages
@@ -404,4 +410,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initAccount();
     return;
   }
-});
+}
+
+window.initDashboard = initDashboard;
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initDashboard);
+} else {
+  initDashboard();
+}
