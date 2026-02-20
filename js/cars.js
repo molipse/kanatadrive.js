@@ -329,7 +329,7 @@ async function initCatalogPage(filters = {}) {
    AUTO-INIT
 ───────────────────────────────────────── */
 
-document.addEventListener('DOMContentLoaded', () => {
+function initCars() {
   // Car detail page — has [data-kd="car-detail"] or ?id= on a /car path
   const isDetailPage =
     document.querySelector('[data-kd="car-detail"]') ||
@@ -351,4 +351,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // filters.js not loaded — load cars directly
     initCatalogPage();
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initCars);
+} else {
+  initCars();
+}

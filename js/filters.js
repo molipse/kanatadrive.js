@@ -382,7 +382,7 @@ function _updateSearchInput() {
    AUTO-INIT
 ───────────────────────────────────────── */
 
-document.addEventListener('DOMContentLoaded', () => {
+function initFiltersPage() {
   // Run only when a catalog container exists on the page
   const hasCatalog =
     document.querySelector('[data-kd="cars-list"]') ||
@@ -391,4 +391,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!hasCatalog) return;
 
   initFilters();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initFiltersPage);
+} else {
+  initFiltersPage();
+}

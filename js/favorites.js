@@ -171,7 +171,7 @@ function updateFavoritesCount() {
    AUTO-INIT
 ───────────────────────────────────────── */
 
-document.addEventListener('DOMContentLoaded', () => {
+function initFavorites() {
   // Always update the count badge in the nav (present on all pages)
   updateFavoritesCount();
 
@@ -190,4 +190,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.querySelector('[data-kd="favorites-list"]')) {
     renderFavorites();
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initFavorites);
+} else {
+  initFavorites();
+}
